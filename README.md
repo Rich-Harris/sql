@@ -4,8 +4,10 @@ Opinionated wrapper around [mysql2](https://github.com/sidorares/node-mysql2).
 
 ## Installation
 
+Install both `@rich_harris/sql` and `mysql2` (which is a peer dependency, not included):
+
 ```bash
-npm i @rich_harris/sql
+npm i @rich_harris/sql mysql2
 ```
 
 ## Usage

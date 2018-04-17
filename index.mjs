@@ -5,14 +5,20 @@ export async function connect(options) {
 		connectionLimit: 10
 	}, options));
 
-	const db = async function query(strings, ...values) {
+	async function run(sql, values) {
 		const conn = await pool.getConnection();
-		const [rows, fields] = await conn.execute(strings.join('?'), values);
+		const [rows, fields] = await conn.execute(sql, values);
 		await conn.release();
 		return { rows, fields };
+	}
+
+	const db = async function query(strings, ...values) {
+		return run(strings.join('?'), values);
 	};
 
 	db.query = db;
+
+	db.run = run;
 
 	db.table = async name => {
 		const conn = await pool.getConnection();
@@ -25,9 +31,11 @@ export async function connect(options) {
 		const field_names = rows.map(row => row.Field);
 		const row_str = `(${Array(field_names.length).fill('?').join(',')})`;
 
-		return {
-			insert: async data => {
+		const table = {
+			insert: async (data, { replace, ignore } = {}) => {
+				if (!data) return;
 				if (!Array.isArray(data)) data = [data];
+				if (data.length === 0) return;
 
 				const values = [];
 				data.forEach(row => {
@@ -38,7 +46,7 @@ export async function connect(options) {
 
 				const conn = await pool.getConnection();
 				const [rows, fields] = await conn.execute(`
-					INSERT INTO ${name} (${field_names.join(',')}) VALUES ${
+					${replace ? 'REPLACE' : 'INSERT'} ${ignore ? 'IGNORE' : ''} INTO ${name} (${field_names.join(',')}) VALUES ${
 						Array(data.length).fill(row_str).join(',')
 					};
 				`, values);
@@ -79,11 +87,53 @@ export async function connect(options) {
 					SET ${changes.join(', ')}
 					WHERE ${conditions.join(' AND ')}
 				`, values);
-				
+
 				await conn.release();
 				return { rows, fields };
+			},
+
+			sanitize: data => {
+				if (!data) return;
+				if (!Array.isArray(data)) data = [data];
+				if (data.length === 0) return;
+
+				const warnings = [];
+
+				data.forEach((datum, i) => {
+					rows.forEach(row => {
+						const field = row.Field;
+
+						if (field in datum && datum[field] === undefined) {
+							warnings.push({
+								row: i,
+								field,
+								message: `was undefined`
+							});
+
+							datum[field] = null;
+						}
+
+						if (row.Type.startsWith('varchar')) {
+							const length = +row.Type.slice(8, -1);
+
+							if (datum[field] && datum[field].length > length) {
+								warnings.push({
+									row: i,
+									field,
+									message: `exceeded length (${datum[field].length} > ${length})`
+								});
+
+								datum[field] = datum[field].slice(0, length);
+							}
+						}
+					});
+				});
+
+				return warnings;
 			}
 		};
+
+		return table;
 	};
 
 	db.close = () => pool.end();

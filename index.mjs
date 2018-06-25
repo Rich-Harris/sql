@@ -64,16 +64,12 @@ export async function connect(options) {
 	db.transaction = async fn => {
 		const conn = await pool.getConnection();
 		await conn.query(`start transaction`);
-		await conn.release();
 
 		try {
-			await fn();
-
-			const conn = await pool.getConnection();
+			await fn(conn);
 			await conn.query(`commit`);
 			await conn.release();
 		} catch (err) {
-			const conn = await pool.getConnection();
 			await conn.query('rollback');
 			await conn.release();
 

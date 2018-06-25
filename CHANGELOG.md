@@ -1,5 +1,9 @@
 # @rich_harris/sql changelog
 
+## 1.2.1
+
+* Fix `db.transaction`
+
 ## 1.2.0
 
 * Various

@@ -51,11 +51,11 @@ async function main() {
     );
   `;
 
-  const { results } = await db`
+  const { rows } = await db`
     SELECT first_name, last_name FROM people WHERE email=${person.email}
   `;
 
-  console.log(results);
+  console.log(rows);
 
   await db.close();
 }
